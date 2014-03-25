@@ -1,0 +1,85 @@
+package com.mykelalexander.zombiebarricade.uiutils;
+
+import java.util.ArrayList;
+import java.util.List;
+
+import com.mykelalexander.zombiebarricade.model.LevelProperties;
+import com.mykelalexander.zombiebarricade.model.Position;
+import com.mykelalexander.zombiebarricade.model.Zombie;
+import com.mykelalexander.zombiebarricade.model.Zombie.ZombieState;
+
+import static com.mykelalexander.zombiebarricade.ZombieBarricadeConstants.*;
+
+public class ZombieManager 
+{
+	private List< Zombie > zombieWorldLayer;
+	private List< Zombie > grave;
+	private LevelProperties level;
+	private float walkTimer;
+	
+	public ZombieManager(LevelProperties level)
+	{
+		this.level = level;
+		zombieWorldLayer = new ArrayList< Zombie >(WORLD_WIDTH * WORLD_HEIGHT);
+		grave = new ArrayList< Zombie >(WORLD_WIDTH * WORLD_HEIGHT);
+		walkTimer = 0;
+	}
+	
+	public List< Zombie > getZombieWorldLayer() { return zombieWorldLayer; }
+	
+	public void moveToGrave(int i)
+	{
+		grave.add(zombieWorldLayer.remove(i));
+	}
+	public void update(float delta)
+	{
+		Zombie current;
+		Position pos;
+	
+		walkTimer += delta;
+		while( walkTimer > 1.0f/8)
+		{
+			walkTimer -= 1.0f/8;
+			
+			//FIRST THE WORLD ZOMBIES ADVANCE
+			for(int i = 0; i < zombieWorldLayer.size(); i++)
+			{
+				current = zombieWorldLayer.get(i);
+				if(current.getState() == ZombieState.DEAD)
+				{
+					moveToGrave(i--);
+					continue;
+				}
+				
+				pos = current.getPosition();
+				current.update();
+				if( pos.yPos <= MAIN_BOARD_HEIGHT)
+					level.gameOver = true;
+			}
+			
+			//NOW ADVANCE THE ZOMBIES IN THE BUFFER
+			for(int i = 0; i < level.zombieBuffer.size(); i++)
+			{
+				current = level.zombieBuffer.get(i);
+				pos = current.getPosition();
+				
+				current.update();
+				if( pos.yPos <= 55 )
+				{
+					pos.yPos = BOARD_Y_OFFSET;
+					current.setState(ZombieState.ACTIVE);
+					zombieWorldLayer.add(level.zombieBuffer.remove(i--));
+				}
+			}
+			
+			if( level.gameOver)
+				return;
+					
+		}
+		
+	}
+	
+	
+	
+	
+}

@@ -1,0 +1,405 @@
+package com.mykelalexander.zombiebarricade;
+
+import java.util.List;
+
+import com.badlogic.gdx.Application;
+import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.InputProcessor;
+import com.badlogic.gdx.Screen;
+import com.badlogic.gdx.Application.ApplicationType;
+import com.badlogic.gdx.audio.Music;
+import com.badlogic.gdx.graphics.GL10;
+import com.badlogic.gdx.graphics.OrthographicCamera;
+import com.badlogic.gdx.graphics.Texture;
+import com.badlogic.gdx.graphics.g2d.TextureRegion;
+import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
+import com.badlogic.gdx.graphics.glutils.ShapeRenderer.ShapeType;
+import com.badlogic.gdx.math.Vector2;
+import com.badlogic.gdx.scenes.scene2d.Stage;
+import com.badlogic.gdx.utils.Scaling;
+
+import com.mykelalexander.zombiebarricade.model.BarricadeBlock;
+import com.mykelalexander.zombiebarricade.model.Level;
+import com.mykelalexander.zombiebarricade.model.PlayableObject;
+import com.mykelalexander.zombiebarricade.model.PlayableObject.ObjectState;
+import com.mykelalexander.zombiebarricade.model.Position;
+import com.mykelalexander.zombiebarricade.model.World;
+import com.mykelalexander.zombiebarricade.model.Zombie;
+import com.mykelalexander.zombiebarricade.model.Zombie.ZombieState;
+import com.mykelalexander.zombiebarricade.uiutils.ControlManager;
+import com.mykelalexander.zombiebarricade.uiutils.ParticleManager;
+import com.mykelalexander.zombiebarricade.uiutils.SoundManager;
+import com.mykelalexander.zombiebarricade.uiutils.TextureManager;
+
+import static com.mykelalexander.zombiebarricade.ZombieBarricadeConstants.*;
+
+public class GameScreen implements Screen
+{
+	public static enum GameState {
+		Running
+	}
+	
+	final ZombieBarricade game;
+	public GameState state;
+	public World world;
+	Music music;
+	
+	//MID LINE RENDER STUFF
+	public ShapeRenderer sr;
+	float alpha = 1.0f;
+	public boolean showMidLine = false;
+	
+	
+	//VIEW PORT
+	public OrthographicCamera camera;
+	
+	//IMAGES
+	String backgroundImageFileName;
+	String tileImageFileName;
+	
+	public GameScreen(final ZombieBarricade game)
+	{
+		this.game = game;
+		state = GameState.Running;
+		world = new World( new Level("level1.txt"));
+		backgroundImageFileName = IMG_BACKGROUND_0;
+		tileImageFileName		= IMG_LAB_TILE;		
+		sr = new ShapeRenderer();
+		
+		Gdx.input.setInputProcessor(new ControlManager(this));
+		loadTextures();
+		loadZombieAnimations();
+		loadParticles();
+		loadSounds();
+		loadMusic();
+		//CREATE CAMERA
+		camera = new OrthographicCamera();
+		camera.setToOrtho(false, 800, 1280);
+	}
+	
+	public void loadMusic()
+	{
+		music = game.audio.newMusic(Gdx.files.internal(MUSIC_PATH+M_SONG1));
+		music.setVolume(0.1f);
+		music.setLooping(true);
+		music.play();
+		
+		
+	}
+	
+	public void loadTextures()
+	{
+		TextureManager tm = TextureManager.getTextureManager();
+		tm.loadTexture(backgroundImageFileName, 0, 0, 800, 1280);
+		tm.loadTexture(tileImageFileName, 0, 0, 800, 1280);
+		tm.loadTexture(IMG_YELLOW_ZOMBIE);
+		tm.loadTexture(IMG_RED_ZOMBIE);
+		tm.loadTexture(IMG_BLUE_ZOMBIE);
+		tm.loadTexture(IMG_YELLOW_BLOCK, 0, 0, 55, 55);
+		tm.loadTexture(IMG_RED_BLOCK, 0, 0, 55, 55);
+		tm.loadTexture(IMG_BLUE_BLOCK, 0, 0, 55, 55);
+	}
+	
+	public void loadZombieAnimations()
+	{
+		TextureManager tm = TextureManager.getTextureManager();
+		List< Zombie > buffer = world.getLevelProperties().zombieBuffer;
+		Zombie current;
+		for(int i = 0; i < buffer.size(); i++)
+		{
+			current = buffer.get(i);
+			switch(current.getType())
+			{
+			case BLUE:
+				current.getAnimationActive().setTexture(tm.getTexture(IMG_BLUE_ZOMBIE));
+				break;
+			case RED:
+				current.getAnimationActive().setTexture(tm.getTexture(IMG_RED_ZOMBIE));
+				break;
+			case YELLOW:
+				current.getAnimationActive().setTexture(tm.getTexture(IMG_YELLOW_ZOMBIE));
+				current.getAnimationDyingYellow().setTexture(tm.getTexture(IMG_YELLOW_ZOMBIE));
+				break;
+			default:
+				break;
+			
+			}
+			
+		}
+	}
+	
+	public void loadParticles()
+	{
+		ParticleManager pm = ParticleManager.getParticleManager();
+		pm.loadParticle(P_FIRE_1);
+		pm.loadParticle(P_PLASMA_1);
+		pm.loadParticle(P_LIGHTNING_1);
+		pm.loadParticle(P_PLACE_BLOCK);
+		pm.loadParticle(P_YELLOW_DEATH);
+	}
+	
+	public void loadSounds()
+	{
+		SoundManager sm = SoundManager.getSoundManager();
+		sm.loadSound(S_RECIEVE_BLOCK, game.audio);
+		sm.loadSound(S_RED_BLOCK_LIFTED, game.audio);
+		sm.loadSound(S_BLUE_BLOCK_LIFTED, game.audio);
+		sm.loadSound(S_YELLOW_BLOCK_LIFTED, game.audio);
+		sm.loadSound(S_BLOCK_PLACED, game.audio);
+		sm.loadSound(S_YELLOW_DEATH, game.audio);
+		sm.loadSound(S_BLOCK_ACTIVATED, game.audio);
+	}
+
+	@Override
+	public void render(float delta) {
+		Gdx.gl.glClearColor(0, 0, 0, 0);
+		Gdx.gl.glClear(GL10.GL_COLOR_BUFFER_BIT);
+		camera.update();
+		game.batch.setProjectionMatrix(camera.combined);
+		game.batch.begin();
+		
+		if(state == GameState.Running)
+			updateRunning(delta);
+		
+		game.batch.end();
+		drawMidLine();
+	}
+	
+	public void updateRunning(float delta)
+	{
+		world.update(delta);
+		drawWorld(delta);
+	}
+	
+	public void drawWorld(float delta)
+	{
+		ParticleManager pm = ParticleManager.getParticleManager();
+		TextureManager tm = TextureManager.getTextureManager();
+		SoundManager sm = SoundManager.getSoundManager();
+		
+		game.batch.draw(tm.getTextureRegion(tileImageFileName), 0, 0);
+		drawObjectLayer(delta);
+		drawZombies(delta);
+		game.batch.draw(tm.getTextureRegion(backgroundImageFileName), 0, 0);
+		drawBlocks(delta);
+		pm.drawParticles(delta, game.batch);
+		sm.playSounds();
+	}
+	
+	public void drawZombies(float delta)
+	{
+		//DRAW ZOMBIES
+		List < Zombie > zombies = world.zombieManager.getZombieWorldLayer();
+		Zombie currentZombie;
+		TextureRegion currentTex;
+		int x;
+		int y;
+		for(int i = 0; i < zombies.size(); i++)
+		{
+			if(zombies.get(i).getState() == ZombieState.ACTIVE)
+			{
+				currentZombie = zombies.get(i);
+				switch(currentZombie.getType())
+				{
+				case BLUE:
+					currentTex = currentZombie.getAnimationActive().getFrame();
+					break;
+				case RED:
+					currentTex = currentZombie.getAnimationActive().getFrame();
+					break;
+				case YELLOW:
+					currentTex = currentZombie.getAnimationActive().getFrame();
+					break;
+				default:
+					currentTex = null;
+					break;
+				
+				}
+				x = currentZombie.getPosition().xPos;
+				y = currentZombie.getPosition().yPos;
+				game.batch.draw(currentTex, x, y);
+			}
+			else if(zombies.get(i).getState() == ZombieState.DYING_YELLOW)
+			{
+				currentZombie = zombies.get(i);
+				currentTex =  currentZombie.getAnimationDyingYellow().getFrame();
+				x = currentZombie.getPosition().xPos;
+				y = currentZombie.getPosition().yPos;
+				game.batch.draw(currentTex, x, y);
+			}
+		}
+	}
+	
+	public void drawBlocks(float delta)
+	{
+		List < BarricadeBlock > blockPool = world.blockManager.getBlockPool();
+		BarricadeBlock current;
+		TextureManager tm = TextureManager.getTextureManager();
+		ParticleManager pm = ParticleManager.getParticleManager();
+		TextureRegion currentTex = null;
+		int x = 0;
+		int y = 0;
+		
+		//DRAW LIFTED BLOCK
+		current = world.blockManager.getLiftedBlock();
+		if(current != null)
+		{
+			currentTex = getBlockTexture( current.getBlockType());
+			x = current.getPosition().xPos;
+			y = current.getPosition().yPos;
+			game.batch.draw(currentTex, x, y);
+			createBlockTravelParticle(current);
+		}
+		//RENDER BLOCK POOL
+		for(int i = 0; i < blockPool.size(); i++)
+		{
+			current = blockPool.get(i);
+			x = current.getPosition().xPos;
+			y = current.getPosition().yPos;
+			currentTex = getBlockTexture(current.getBlockType());
+			game.batch.draw(currentTex, x, y);
+			
+			//CHECK IF PARTICLE IS NEEDED
+			if(current.getState() == ObjectState.MOVING_TO_POOL)
+				createBlockTravelParticle(current);
+		}
+		//DRAW NEXT BLOCK
+		current = world.blockManager.getNextBlock();
+		x = current.getPosition().xPos;
+		y = current.getPosition().yPos;
+		currentTex = getBlockTexture(current.getBlockType());
+		game.batch.draw(currentTex, x, y);
+	}
+	
+	public void drawObjectLayer(float delta)
+	{
+		List < PlayableObject > objectLayer = world.blockManager.getObjectLayer();
+		Position pos;
+		TextureRegion tex;
+		BarricadeBlock block;
+		
+		for(int i = 0; i < objectLayer.size(); i++)
+		{
+			block = (BarricadeBlock)objectLayer.get(i);
+			tex = getBlockTexture(block.getBlockType());
+			pos = block.getPosition();
+			block.getAnimation().setTexture(getBlockAnimationTexture(block.getBlockType()));
+			game.batch.draw(block.getAnimation().getFrame(), pos.xPos, pos.yPos);
+		}
+	}
+	
+	public void drawMidLine()
+	{
+		if(showMidLine)
+		{
+			Gdx.gl10.glLineWidth(2);
+			sr.setProjectionMatrix(camera.combined);
+			sr.begin(ShapeType.Line);
+			sr.setColor(1, 0, 0, alpha);
+			sr.line(BOARD_X_OFFSET, BOARD_Y_OFFSET - TILE_HEIGHT * 10, BOARD_X_OFFSET + TILE_WIDTH * 10, BOARD_Y_OFFSET - TILE_HEIGHT * 10);
+			sr.end();
+			
+			alpha -= 0.01f;
+			if(alpha <= 0)
+			{
+				showMidLine = false;
+				alpha = 1;
+			}
+		}
+	}
+	
+	public void createBlockTravelParticle(BarricadeBlock block)
+	{
+		ParticleManager pm = ParticleManager.getParticleManager();
+		Position pos = block.getPosition();
+		String file = null;
+		
+		switch(block.getBlockType())
+		{
+		case BarricadeBlock.RED_BLOCK:
+			file = P_FIRE_1;
+			break;
+		case BarricadeBlock.BLUE_BLOCK:
+			file = P_LIGHTNING_1;
+			break;
+		case BarricadeBlock.YELLOW_BLOCK:
+			file = P_PLASMA_1;
+			break;
+		}
+		
+		pm.playParticleEffect(file, pos.xPos + 25, pos.yPos + 25);
+	}
+	
+	public TextureRegion getBlockTexture( int type )
+	{
+		TextureManager tm = TextureManager.getTextureManager();
+		if(type == BarricadeBlock.YELLOW_BLOCK)
+			return tm.getTextureRegion(IMG_YELLOW_BLOCK);
+		if(type == BarricadeBlock.RED_BLOCK)
+			return tm.getTextureRegion(IMG_RED_BLOCK);
+		if(type == BarricadeBlock.BLUE_BLOCK)
+			return tm.getTextureRegion(IMG_BLUE_BLOCK);
+		
+		return null;
+	}
+	
+	public Texture getBlockAnimationTexture( int type )
+	{
+		TextureManager tm = TextureManager.getTextureManager();
+		if(type == BarricadeBlock.YELLOW_BLOCK)
+			return tm.getTexture(IMG_YELLOW_BLOCK);
+		if(type == BarricadeBlock.RED_BLOCK)
+			return tm.getTexture(IMG_RED_BLOCK);
+		if(type == BarricadeBlock.BLUE_BLOCK)
+			return tm.getTexture(IMG_BLUE_BLOCK);
+		
+		return null;
+	}
+
+	@Override
+	public void resize(int width, int height) {
+		if(Gdx.app.getType() == ApplicationType.Desktop)
+		{
+			Vector2 size = Scaling.fit.apply(800, 1280, width, height);
+			int viewportX = (int)(width - size.x) / 2;
+			int viewportY = (int)(height - size.y) / 2;
+			int viewportWidth = (int)size.x;
+			int viewportHeight = (int)size.y;
+			Gdx.gl.glViewport(viewportX, viewportY, viewportWidth, viewportHeight);
+		}
+		
+	}
+
+	@Override
+	public void show() {
+		// TODO Auto-generated method stub
+		
+	}
+
+	@Override
+	public void hide() {
+		// TODO Auto-generated method stub
+		
+	}
+
+	@Override
+	public void pause() {
+		// TODO Auto-generated method stub
+		
+	}
+
+	@Override
+	public void resume() {
+		// TODO Auto-generated method stub
+		
+	}
+
+	@Override
+	public void dispose() {
+		TextureManager.getTextureManager().dispose();
+		ParticleManager.getParticleManager().dispose();
+		SoundManager.getSoundManager().dispose();	
+		music.stop();
+		music.dispose();
+	}
+}

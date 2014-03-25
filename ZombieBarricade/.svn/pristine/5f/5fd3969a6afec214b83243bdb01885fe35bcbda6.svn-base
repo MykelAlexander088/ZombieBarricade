@@ -1,0 +1,264 @@
+package com.mykelalexander.zombiebarricade.model;
+
+import java.util.ArrayList;
+import java.util.List;
+
+import com.mykelalexander.zombiebarricade.model.PlayableObject.ObjectState;
+import com.mykelalexander.zombiebarricade.model.Zombie.ZombieState;
+
+public class GameWorld 
+{	
+	//WORLD CONSTANTS
+	public static final int WORLD_WIDTH = 10;
+	public static final int WORLD_HEIGHT = 20;
+	public static final int TILE_WIDTH = 55;
+	public static final int TILE_HEIGHT = 55;
+	public static final int BLOCK_POOL_SIZE = 10;
+	public static final int BLOCK_POOL_X_OFFSET = 104;
+	public static final int BLOCK_POOL_Y_OFFSET = Level.SCREEN_HEIGHT - 1194 + TILE_HEIGHT;
+	public static final int NEXT_BLOCK_X = 699;
+	public static final int NEXT_BLOCK_Y = Level.SCREEN_HEIGHT - 1106 + TILE_HEIGHT;
+	public static final int MAIN_BOARD_HEIGHT = Level.SCREEN_HEIGHT - 1100;
+	//WORLD PROPERTIES
+	public List < Zombie > 			zombieWorldLayer;
+	public List < PlayableObject >	objectLayer;
+	public List < BarricadeBlock > 	blockPool;
+	public BarricadeBlock 			liftedBlock;
+	
+	public BarricadeBlock			nextBlock;
+	
+	//GAME STATS
+	public int score;
+	public boolean gameOver;
+	
+	//ENGINE STUFF
+	int currentBlockIndex;
+	int blocksGenerated;
+	float timer;
+	public float blockTimer;
+	public boolean blockLifted = false;
+	public int returnIndex;
+	
+	
+	LevelProperties level;
+	
+	
+	public GameWorld( Level level ) 
+	{
+		//LOAD THE LEVEL FILE AND GET IT'S PROPERTIES
+		this.level = level.getLevelProperties();
+		
+		//INITIALIZE LEVELS RETRIEVED FROM LEVEL FILE
+		zombieWorldLayer	= new ArrayList<Zombie>(WORLD_WIDTH * WORLD_HEIGHT);
+		objectLayer			= new ArrayList<PlayableObject>(WORLD_WIDTH * WORLD_HEIGHT);
+		blockPool			= new ArrayList<BarricadeBlock>(BLOCK_POOL_SIZE);
+		
+		//INITIALIZE BLOCK POOL POINTER
+		currentBlockIndex = 0;
+		
+		//INITIALIZE GAME VARIABLES
+		blocksGenerated = 0;
+		gameOver = false;
+		score = 0;
+		timer = 0;
+		blockTimer = this.level.nextBlockDropSpeed;
+		
+		generateBlock();
+	}
+	
+	public LevelProperties getLevelProperties() { return level; }
+	
+	public void generateBlock()
+	{	
+		//IF THERE IS A BLOCK THAT WE NEED NOW, MAKE IT THE NEXT BLOCK
+		if(currentBlockIndex < level.blockBufferSize)
+		{
+			if( blocksGenerated >= level.blockBuffer[currentBlockIndex][1])
+			{
+				
+				nextBlock = new BarricadeBlock(level.blockBuffer[currentBlockIndex++][0]);
+				nextBlock.setState(ObjectState.NEXT);
+				nextBlock.getPosition().xVel = BarricadeBlock.BLOCK_VELOCITY;
+				nextBlock.getPosition().yVel = BarricadeBlock.BLOCK_VELOCITY;
+				blocksGenerated++;
+				return; //cheap way to error check this condition
+			}
+		}
+		//IF THERE WAS NO BLOCK THAT IS REQUIRED THEN ADD RANDOM BLOCK
+		int randomBlock = (int)(Math.random() * (20 - 1)) + 1;
+			
+		if( randomBlock >= 1 && randomBlock <= 10)
+			nextBlock = new BarricadeBlock(BarricadeBlock.YELLOW_BLOCK);
+		else if( randomBlock >= 11 && randomBlock <= 15)
+			nextBlock = new BarricadeBlock(BarricadeBlock.BLUE_BLOCK);
+		else
+			nextBlock = new BarricadeBlock(BarricadeBlock.RED_BLOCK);
+		
+		nextBlock.setState(ObjectState.NEXT);
+		nextBlock.getPosition().xPos = NEXT_BLOCK_X;
+		nextBlock.getPosition().yPos = NEXT_BLOCK_Y;
+		nextBlock.getPosition().xVel = BarricadeBlock.BLOCK_VELOCITY;
+		nextBlock.getPosition().yVel = BarricadeBlock.BLOCK_VELOCITY;
+		blocksGenerated++;
+	}
+	
+	public void moveBlockToPool()
+	{
+		Position pos = nextBlock.getPosition();
+		
+		blockPool.add(nextBlock);
+		nextBlock.setState(ObjectState.IN_POOL);
+		pos.xDes = (blockPool.size() - 1) * TILE_WIDTH + BLOCK_POOL_X_OFFSET;
+		pos.yDes = BLOCK_POOL_Y_OFFSET;	
+	}
+	
+	public void updateZombies()
+	{
+		//FIRST ADVANCE THE ZOMBIES IN THE WORLD LAYER
+		Zombie current;
+		Position pos;
+		for(int i = 0; i < zombieWorldLayer.size(); i++)
+		{
+			current = zombieWorldLayer.get(i);
+			pos = current.getPosition();
+			//current.getAnimationActive().update();
+			current.update();
+			if( pos.yPos >= MAIN_BOARD_HEIGHT)
+				gameOver = true;
+
+		}
+		
+		//NOW ADVANCE ZOMBIES IN THE BUFFER
+		for(int i = 0; i < level.zombieBuffer.size(); i++) 
+		{
+			current = level.zombieBuffer.get(i);
+			current.update();
+			pos = current.getPosition();
+			if(pos.yPos >= level.zombieBufferSize  * TILE_HEIGHT)
+			{
+				pos.yPos = 0;
+				current.setState(ZombieState.ACTIVE);
+				zombieWorldLayer.add(level.zombieBuffer.remove(i--));
+			}
+		}
+	}
+	
+	public void updateBlocks()
+	{
+		//Block Pool
+		for(int i = 0; i < blockPool.size(); i++)
+		{
+			blockPool.get(i).update();
+		}
+		
+		//ObjectLayer
+		for(int i = 0; i < objectLayer.size(); i++)
+		{
+			objectLayer.get(i).update();
+		}
+		
+		nextBlock.update();
+		
+		if(liftedBlock != null)
+			liftedBlock.update();
+	}
+	
+	public void liftBlock(int i)
+	{
+		liftedBlock = blockPool.remove(i);
+		returnIndex = i;
+		blockLifted = true;
+		
+		Position pos;
+		for(int j = 0; j < blockPool.size(); j++)
+		{
+			pos = blockPool.get(j).getPosition();
+			pos.xDes = (j) * TILE_WIDTH + BLOCK_POOL_X_OFFSET;
+			pos.yDes = BLOCK_POOL_Y_OFFSET;	
+			
+		}
+	}
+	
+	public void returnBlockToPool()
+	{
+		blockPool.add(returnIndex, liftedBlock );
+		liftedBlock = null;
+		blockLifted = false;
+		Position pos;
+		for(int j = 0; j < blockPool.size(); j++)
+		{
+			pos = blockPool.get(j).getPosition();
+			pos.xDes = (j) * TILE_WIDTH + BLOCK_POOL_X_OFFSET;
+			pos.yDes = BLOCK_POOL_Y_OFFSET;	
+			
+		}
+	}
+	
+	public void placeBlock(int x, int y) {
+		Position pos;
+		
+		//CHECK IF THERE IS A ZOMBIE IN LOCATION
+		for(int i = 0; i < zombieWorldLayer.size(); i++)
+		{
+			pos = zombieWorldLayer.get(i).getPosition();
+			if(pos.xPos >= x && pos.xPos <= x +55 && pos.yPos >= y && pos.yPos <= pos.yPos + 55)
+			{
+				returnBlockToPool();
+				return;
+			}
+		}
+		
+		//CHECK IF THERE IS A BLOCK IN LOCATION
+		for(int i = 0; i < objectLayer.size(); i++)
+		{
+			pos = objectLayer.get(i).getPosition();
+			if(pos.xPos == x && pos.yPos == y)
+			{
+				returnBlockToPool();
+				return;
+			}		
+		}
+		
+		liftedBlock.setState(ObjectState.PLACED);
+		pos = liftedBlock.getPosition();
+		pos.setDestination(x, y);	
+		objectLayer.add(liftedBlock);
+		liftedBlock = null;
+		blockLifted = false;
+	}
+	
+	public void update(float deltaTime)
+	{
+		if(gameOver)
+			return;
+		
+		blockTimer -= deltaTime;
+		if(blockTimer < 0)
+			blockTimer = 0;
+		
+		if(blockTimer <= 0 && blockPool.size() < BLOCK_POOL_SIZE 
+				&& !(blockPool.size() == BLOCK_POOL_SIZE - 1 && blockLifted))
+		{
+			moveBlockToPool();
+			generateBlock();
+			level.nextBlockDropSpeed += level.nextBlockDropSpeedIncrement;
+			blockTimer = level.nextBlockDropSpeed;
+		}
+		
+		updateBlocks();
+		
+		timer += deltaTime;
+		while (timer > 1.0f/7)
+		{
+			timer -= 1.0f/8;
+			updateZombies();
+			if(gameOver)
+				return;;
+			
+		}
+		
+		
+	}
+	
+	
+}

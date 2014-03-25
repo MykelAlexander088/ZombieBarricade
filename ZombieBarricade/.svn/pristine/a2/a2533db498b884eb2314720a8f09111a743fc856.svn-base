@@ -1,0 +1,86 @@
+package com.mykelalexander.zombiebarricade.model;
+
+import com.mykelalexander.zombiebarricade.uiutils.ParticleManager;
+import com.mykelalexander.zombiebarricade.uiutils.SoundManager;
+
+import static com.mykelalexander.zombiebarricade.ZombieBarricadeConstants.*;
+
+public class Zombie 
+{
+public enum ZombieType { YELLOW, RED, BLUE}
+	
+	public enum ZombieState { OFFSCREEN, ACTIVE, DYING_YELLOW, DYING_RED, DYING_BLUE, DEAD }
+	
+	private Position position;
+	private ZombieType type;
+	private ZombieState state;
+	private Animation animationActive;
+	private Animation animationDyingYellow;
+	
+	public Zombie() {}
+	
+	public Zombie(Position position, ZombieType type)
+	{
+		this.position = position;
+		this.type = type;
+		this.state = ZombieState.OFFSCREEN;
+		this.animationActive = new Animation(0, 0, 8, 55, 55);
+		this.animationDyingYellow = new Animation(1, 1, 8, 55, 55);
+	}
+	
+	public void setState(ZombieState state)		{ this.state = state; }
+	public ZombieState getState() 				{ return state; }
+	public ZombieType getType() 				{ return type; }
+	public Position getPosition() 				{ return position; }
+	public Animation getAnimationActive()		{ return animationActive; }
+	public Animation getAnimationDyingYellow()	{ return animationDyingYellow; }
+	public void update() 
+	{
+		switch(state)
+		{
+		case ACTIVE:
+			updateActive();
+			break;
+		case DEAD:
+			break;
+		case DYING_BLUE:
+			break;
+		case DYING_RED:
+			break;
+		case DYING_YELLOW:
+			updateDyingYellow();
+			break;
+		case OFFSCREEN:
+			updateOffscreen();
+			break;
+		default:
+			break;
+		}
+	}
+	
+	private void updateActive() 
+	{
+		position.move();
+		animationActive.update();
+	}
+	
+	private void updateOffscreen()
+	{
+		position.move();
+	}
+	
+	private void updateDyingYellow()
+	{
+		if(animationDyingYellow.getCurrentFrame() >= 7)
+		{
+			SoundManager sm = SoundManager.getSoundManager();
+			sm.placeSoundMessage(S_YELLOW_DEATH);
+			state = ZombieState.DEAD;
+			ParticleManager.getParticleManager().playParticleEffect(P_YELLOW_DEATH, position.xPos + TILE_WIDTH/2, position.yPos + TILE_HEIGHT/2);
+			
+		}
+		else
+			animationDyingYellow.update();
+	}
+
+}

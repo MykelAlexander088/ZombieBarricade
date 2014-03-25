@@ -1,0 +1,91 @@
+package com.mykelalexander.zombiebarricade.model;
+
+
+import java.util.List;
+
+import com.mykelalexander.zombiebarricade.model.PlayableObject.ObjectState;
+import com.mykelalexander.zombiebarricade.model.Zombie.ZombieType;
+import com.mykelalexander.zombiebarricade.uiutils.BarricadeBlockManager;
+import com.mykelalexander.zombiebarricade.uiutils.ZombieManager;
+import static com.mykelalexander.zombiebarricade.ZombieBarricadeConstants.*;
+
+
+public class World 
+{
+	
+	//GAME STATS
+	public int score;
+	
+	//ENGINE STUFF
+	public int returnIndex;
+	
+	LevelProperties level;
+	
+	public ZombieManager zombieManager;
+	public BarricadeBlockManager blockManager;
+	
+	public World( Level level )
+	{
+		//LOAD THE LEVEL FILE AND GET ITS PROPERTIES
+		this.level = level.getLevelProperties();
+		
+		//INTIALIZE ENTITY MANAGERS
+		zombieManager = new ZombieManager(level.getLevelProperties());
+		blockManager = new BarricadeBlockManager(level.getLevelProperties());
+		
+		//INITIALIZE GAME VARIABLES
+		score = 0;
+	}
+	
+	public void checkForCollisions()
+	{
+		List< Zombie > zombies = zombieManager.getZombieWorldLayer();
+		List< PlayableObject > objects = blockManager.getObjectLayer();
+		Zombie zombie;
+		PlayableObject object;
+		Position zPos;
+		Position oPos;
+		
+		for(int i = 0; i < objects.size(); i++)
+		{
+			for( int j = 0; j < zombies.size(); j++)
+			{
+				object = objects.get(i);
+				zombie = zombies.get(j);
+				zPos = zombie.getPosition();
+				oPos = object.getPosition();
+				
+				if(zPos.xPos == oPos.xPos && zPos.yPos <= oPos.yPos + TILE_HEIGHT/2 && zPos.yPos - zPos.yVel >= oPos.yPos + TILE_HEIGHT/2 )
+				{
+					ZombieType zType = zombie.getType();
+					if(object instanceof BarricadeBlock)
+					{
+						BarricadeBlock block = (BarricadeBlock)object;
+						if(((zType == ZombieType.YELLOW && block.getBlockType() == BarricadeBlock.YELLOW_BLOCK)
+								|| (zType == ZombieType.RED && block.getBlockType() == BarricadeBlock.RED_BLOCK)
+								|| (zType == ZombieType.BLUE && block.getBlockType() == BarricadeBlock.BLUE_BLOCK)) && !(object.getState() == ObjectState.USED))
+						{
+							block.activate(zombie);
+						}
+					}
+					
+				}
+				
+			}
+		}
+		
+	}
+	
+	public LevelProperties getLevelProperties() { return level; }
+	
+	public void update(float deltaTime)
+	{
+		if(level.gameOver)
+			return;
+		
+		zombieManager.update(deltaTime);
+		blockManager.updateBlocks(deltaTime);
+		checkForCollisions();
+	}
+	
+}

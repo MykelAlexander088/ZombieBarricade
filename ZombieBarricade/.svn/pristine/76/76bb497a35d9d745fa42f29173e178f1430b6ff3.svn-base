@@ -1,0 +1,32 @@
+package com.mykelalexander.zombiebarricade.model;
+
+public abstract class PlayableObject 
+{
+	public enum ObjectState { INVISIBLE, NEXT, IN_POOL, PLACED, LIFTED, MOVING_TO_POOL, ACTIVATING, USED }
+	
+	private Position position;
+	private ObjectState state;
+	
+	public PlayableObject( Position position ) 
+	{
+		this.position = position;
+		this.state = ObjectState.INVISIBLE;
+	}
+	
+	public void moveObject( int x, int y ) 
+	{
+		position.setDestination(x, y);
+	}
+	
+	public void setState(ObjectState state)
+	{
+		this.state = state;
+	}
+	
+	public Position getPosition() { return position; 	}
+	public ObjectState getState() { return state;		}
+	
+	public abstract void update();
+	public abstract int activate(Zombie zombie);
+
+}

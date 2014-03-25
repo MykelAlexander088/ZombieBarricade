@@ -1,0 +1,150 @@
+package com.mykelalexander.zombiebarricade.model;
+
+import com.mykelalexander.zombiebarricade.model.Zombie.ZombieState;
+import com.mykelalexander.zombiebarricade.uiutils.SoundManager;
+import static com.mykelalexander.zombiebarricade.ZombieBarricadeConstants.*;
+public class BarricadeBlock extends PlayableObject
+{
+	//TYPES OF BLOCKS
+	public static final int YELLOW_BLOCK = 1;
+	public static final int RED_BLOCK = 2;
+	public static final int BLUE_BLOCK = 3;
+	
+	public static final int BLOCK_VELOCITY = 15;
+	
+	private int blockType;
+	private int blockAnimationController = 0;
+	private Animation animation;
+	
+	public BarricadeBlock( int blockType )
+	{
+		super(new Position(0, 0));
+		this.blockType = blockType;
+		setState(ObjectState.INVISIBLE);
+		
+		animation = new Animation(0, 0, 8, 55, 55);
+	}
+	
+	public int getBlockType() 		{ return blockType; }
+	public Animation getAnimation() { return animation; }
+	
+	@Override
+	public void update()
+	{
+		switch(this.getState())
+		{
+		case INVISIBLE:
+			break;
+		case MOVING_TO_POOL:
+			updateMovingToPool();
+			break;
+		case IN_POOL:
+			updateInPool();
+			break;
+		case LIFTED:
+			updateLifted();
+			break;
+		case NEXT:
+			break;
+		case PLACED:
+			updatePlaced();
+			break;
+		case ACTIVATING:
+			updateActivating();
+			break;
+		case USED:
+			break;
+		default:
+			break;
+		
+		}
+	}
+	
+	private void updateActivating() {
+		if(blockAnimationController >= 60)
+		{
+			this.setState(ObjectState.USED);
+		}
+		else
+		{
+			if(blockAnimationController <= 6)
+				animation.update();
+			blockAnimationController += 1;
+		}
+		
+	}
+
+	public void updateMovingToPool()
+	{
+		if(!getPosition().hasReachedDestination())
+			getPosition().advance();
+		else
+			setState(ObjectState.IN_POOL);
+	}
+	
+	public void updateInPool()
+	{
+		if(!getPosition().hasReachedDestination())
+			getPosition().advance();
+	}
+	
+	public void updateNext()
+	{
+		if(!getPosition().hasReachedDestination())
+			getPosition().advance();
+	}
+	
+	public void updateLifted()
+	{
+		if(!getPosition().hasReachedDestination())
+			getPosition().advance();
+	}
+	
+	public void updatePlaced()
+	{
+		if(!getPosition().hasReachedDestination())
+			getPosition().advance();
+	}
+	
+
+	@Override
+	public int activate(Zombie zombie) {
+		int points = 0;
+		
+		switch(blockType)
+		{
+		case YELLOW_BLOCK:
+			points = activateYellow(zombie);
+			break;
+		case RED_BLOCK:
+			activateRed(zombie);
+			break;
+		case BLUE_BLOCK:
+			activateBlue(zombie);
+			break;
+		}
+			
+		return points;
+		
+	}
+
+	private void activateBlue(Zombie zombie) {
+		// TODO Auto-generated method stub
+		
+	}
+
+	private void activateRed(Zombie zombie) {
+		// TODO Auto-generated method stub
+		
+	}
+
+	private int activateYellow(Zombie zombie) {
+		SoundManager sm = SoundManager.getSoundManager();
+		zombie.setState(ZombieState.DYING_YELLOW);
+		this.setState(ObjectState.ACTIVATING);
+		sm.placeSoundMessage(S_BLOCK_ACTIVATED);
+		
+		return 1;	
+	}
+
+}

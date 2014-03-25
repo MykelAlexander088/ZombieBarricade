@@ -1,0 +1,38 @@
+LEVEL
+
+START_ZOMBIE_VELOCITY: -3
+
+ZOMBIE_VELOCITY_INCREMENT: -1
+
+NEXT_BLOCK_DROP_SPEED: 1
+
+NEXT_BLOCK_INCREMENT_SPEED: 0
+
+ZOMBIE_BUFFER_SIZE: 10
+
+
+@ 0: No Zombie, 1: Yellow Zombie, 2: Red Zombie, 3: Blue Zombie
+
+ZOMBIE_BUFFER:	2 1 3 2 1 2 3 1 3 1
+				2 2 2 2 1 1 1 1 1 1
+				3 3 3 3 3 3 3 3 3 3
+				1 1 1 1 1 1 1 1 1 1
+				1 1 1 2 1 1 2 1 1 1
+				3 3 3 3 3 3 3 3 3 3
+				2 2 2 2 2 2 2 2 2 2
+				2 3 3 2 1 1 2 3 3 3
+				2 2 1 3 2 2 3 1 2 1
+				1 1 3 1 1 1 1 3 1 1 
+
+BLOCK_BUFFER_SIZE: 0
+
+@ 1: Yellow Block, 2: Red Block, 3: Blue Block
+@ The format of the buffer is [block color] [time block should be dropped by] \n 0 terminates
+
+BLOCK_BUFFER: 0
+
+@ Higher values = slower speed
+
+EVENTS:
+
+END

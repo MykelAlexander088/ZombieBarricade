@@ -1,0 +1,235 @@
+package com.mykelalexander.zombiebarricade.uiutils;
+
+import java.util.ArrayList;
+import java.util.List;
+
+import com.mykelalexander.zombiebarricade.model.BarricadeBlock;
+import com.mykelalexander.zombiebarricade.model.LevelProperties;
+import com.mykelalexander.zombiebarricade.model.PlayableObject;
+import com.mykelalexander.zombiebarricade.model.PlayableObject.ObjectState;
+import com.mykelalexander.zombiebarricade.model.Position;
+import com.mykelalexander.zombiebarricade.model.Zombie;
+
+import static com.mykelalexander.zombiebarricade.ZombieBarricadeConstants.*;
+
+public class BarricadeBlockManager 
+{
+	private List < PlayableObject > objectLayer;
+	private List < PlayableObject > used;
+	private List < BarricadeBlock > blockPool;
+	private BarricadeBlock liftedBlock;
+	private BarricadeBlock nextBlock;
+	private int currentBlockIndex;
+	private int blocksGenerated;
+	public int returnIndex;
+	private float blockTimer;
+	private boolean blockLifted;
+	
+	LevelProperties level;
+	
+	public BarricadeBlockManager(LevelProperties level)
+	{
+		this.level = level;
+		objectLayer = new ArrayList< PlayableObject >(WORLD_WIDTH * WORLD_HEIGHT);
+		used = new ArrayList< PlayableObject >(WORLD_WIDTH * WORLD_HEIGHT);
+		blockPool = new ArrayList< BarricadeBlock >(BLOCK_POOL_SIZE);
+		
+		currentBlockIndex = 0;
+		blocksGenerated = 0;
+		blockLifted = false;
+		blockTimer = level.nextBlockDropSpeed;
+		
+		generateBlock();
+	}
+	
+	public List< BarricadeBlock > getBlockPool(){ return blockPool; }
+	public List< PlayableObject > getObjectLayer(){ return objectLayer; }
+	public BarricadeBlock getNextBlock(){ return nextBlock; }
+	public boolean isBlockLifted() { return blockLifted; }
+	public BarricadeBlock getLiftedBlock(){ return liftedBlock; }
+	
+	public void generateBlock()
+	{
+		Position pos;
+		
+		//IF THERE IS A BLOCK THAT WE NEED NOW, MAKE IT THE NEXT BLOCK
+		if(currentBlockIndex < level.blockBufferSize)
+		{
+			if(blocksGenerated >= level.blockBuffer[currentBlockIndex][1])
+			{
+				nextBlock = new BarricadeBlock(level.blockBuffer[currentBlockIndex++][0]);
+				nextBlock.setState(ObjectState.NEXT);
+				pos = nextBlock.getPosition();
+				pos.xPos = NEXT_BLOCK_X;
+				pos.yPos = NEXT_BLOCK_Y;
+				pos.xVel = BarricadeBlock.BLOCK_VELOCITY;
+				pos.yVel = BarricadeBlock.BLOCK_VELOCITY;
+				return; //cheap way to avoid error condition
+			}
+		}
+		//IF THERE WAS NO BLOCK THAT WE REQUIRE, ADD A RANDOM BLOCK
+		int randomBlock = (int)(Math.random() * (20-1)) + 1;
+		
+		if( randomBlock >= 1 && randomBlock <= 10)
+		{
+			nextBlock = new BarricadeBlock(BarricadeBlock.YELLOW_BLOCK);
+		}
+		else if( randomBlock >= 11 && randomBlock <= 15)
+		{
+			nextBlock = new BarricadeBlock(BarricadeBlock.BLUE_BLOCK);
+		}
+		else
+			nextBlock = new BarricadeBlock(BarricadeBlock.RED_BLOCK);
+		
+		
+		nextBlock.setState(ObjectState.NEXT);
+		pos = nextBlock.getPosition();
+		pos.xPos = NEXT_BLOCK_X;
+		pos.yPos = NEXT_BLOCK_Y;
+		pos.xVel = BarricadeBlock.BLOCK_VELOCITY;
+		pos.yVel = BarricadeBlock.BLOCK_VELOCITY;
+		blocksGenerated++;
+	}
+	
+	public void moveBlockToPool()
+	{
+		Position pos = nextBlock.getPosition();
+		SoundManager sm = SoundManager.getSoundManager();
+		
+		blockPool.add(nextBlock);
+		nextBlock.setState(ObjectState.MOVING_TO_POOL);
+		pos.xDes = (blockPool.size() - 1) * TILE_WIDTH + BLOCK_POOL_X_OFFSET;
+		pos.yDes = BLOCK_POOL_Y_OFFSET;
+		
+		//SEND MESSAGE TO PLAY SOUND
+		sm.placeSoundMessage(S_RECIEVE_BLOCK);
+	}
+	
+	public void liftBlock(int i)
+	{
+		SoundManager sm = SoundManager.getSoundManager();
+		liftedBlock = blockPool.remove(i);
+		liftedBlock.setState(ObjectState.LIFTED);
+		returnIndex = i;
+		blockLifted = true;
+		
+		Position pos;
+		for(int j = 0; j < blockPool.size();j++)
+		{
+			pos = blockPool.get(j).getPosition();
+			pos.xDes = j * TILE_WIDTH + BLOCK_POOL_X_OFFSET;
+			pos.yDes = BLOCK_POOL_Y_OFFSET;
+		}
+		
+		switch(liftedBlock.getBlockType())
+		{
+		case BarricadeBlock.RED_BLOCK:
+			sm.loopSound(S_RED_BLOCK_LIFTED, 0.5f, 1, 1);
+			break;	
+		case BarricadeBlock.BLUE_BLOCK:
+			sm.loopSound(S_BLUE_BLOCK_LIFTED, 0.5f, 1, 1);
+			break;
+		case BarricadeBlock.YELLOW_BLOCK:
+			sm.loopSound(S_YELLOW_BLOCK_LIFTED, 0.5f, 1, 1);
+			break;
+		}
+	}
+	
+	public void placeBlock(int x, int y, List< Zombie > zombies)
+	{
+		Position pos;
+		ParticleManager pm = ParticleManager.getParticleManager();
+		SoundManager sm = SoundManager.getSoundManager();
+		
+		//CHECK IF A ZOMBIE IS OCCUPYING THE LOCATION
+		for(int i = 0; i < zombies.size(); i++)
+		{
+			pos = zombies.get(i).getPosition();
+			if(pos.xPos >= x && pos.xPos <= x + 55 && pos.yPos >= y && pos.yPos <= y + TILE_HEIGHT)
+			{
+				returnBlockToPool();
+				return;
+			}
+		}
+		
+		//CHECK IF THERE IS A BLOCK IN THE LOCATION
+		for(int i = 0; i < objectLayer.size(); i++)
+		{
+			pos = objectLayer.get(i).getPosition();
+			if(pos.xPos == x && pos.yPos == y)
+			{
+				returnBlockToPool();
+				return;
+			}
+		}
+		
+		liftedBlock.setState(ObjectState.PLACED);
+		pos = liftedBlock.getPosition();
+		pos.setDestination(x, y);
+		objectLayer.add(liftedBlock);
+		liftedBlock = null;
+		blockLifted = false;
+		pm.playParticleEffect(P_PLACE_BLOCK, x + TILE_WIDTH/2, y + TILE_HEIGHT/2);
+		sm.placeSoundMessage(S_BLOCK_PLACED);
+	}
+	public void returnBlockToPool()
+	{
+		blockPool.add(returnIndex, liftedBlock);
+		liftedBlock.setState(ObjectState.MOVING_TO_POOL);
+		liftedBlock = null;
+		blockLifted = false;
+		Position pos;
+		for(int j = 0; j < blockPool.size(); j++)
+		{
+			pos = blockPool.get(j).getPosition();
+			pos.xDes = j * TILE_WIDTH + BLOCK_POOL_X_OFFSET;
+			pos.yDes = BLOCK_POOL_Y_OFFSET;
+		}
+	}
+	
+	public void updateBlocks(float delta)
+	{
+		blockTimer -= delta;
+		if(blockTimer < 0)
+			blockTimer = 0;
+		
+		//IF TIMER IS UP, ADD BLOCK TO BLOCK POOL
+		if((blockTimer <= 0 && blockPool.size() < BLOCK_POOL_SIZE)
+			&& !(blockPool.size() == BLOCK_POOL_SIZE - 1 && blockLifted))
+		{
+			moveBlockToPool();
+			generateBlock();
+			level.nextBlockDropSpeed += level.nextBlockDropSpeedIncrement;
+			blockTimer = level.nextBlockDropSpeed;
+		}
+		
+		//UPDATE BLOCK POOL
+		for(int i = 0; i < blockPool.size(); i++)
+		{
+			blockPool.get(i).update();
+		}
+		
+		//UPDATE OBJECT LAYER
+		for(int i = 0; i < objectLayer.size(); i++)
+		{
+			if(objectLayer.get(i).getState() == ObjectState.USED)
+			{
+				discardBlock(i--);
+				continue;
+			}
+			objectLayer.get(i).update();
+		}
+		
+		nextBlock.update();
+		
+		if(liftedBlock != null)
+			liftedBlock.update();
+	}
+	
+	public void discardBlock(int i)
+	{
+		used.add(objectLayer.remove(i));
+	}
+	
+
+}

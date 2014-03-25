@@ -1,0 +1,21 @@
+package com.mykelalexander.zombiebarricade.model;
+
+import java.util.List;
+
+public class LevelProperties 
+{
+	public int zombieBufferSize;
+	public int blockBufferSize;
+	public int startZombieVelocity;
+	public int zombieVelocityIncrement;
+	public int nextBlockDropSpeed;
+	public int nextBlockDropSpeedIncrement;
+	public boolean loaded = false;
+	
+	public List< Zombie > zombieBuffer;
+	public int[][] blockBuffer;
+	
+	public boolean gameOver = false;
+	
+	public LevelProperties(){}
+}
